@@ -40,7 +40,7 @@
       </label>
     </div>
 
-    <details>
+    <details id="reminder" {{'open' if request.args.get('show') == 'reminder'}}>
       <summary>Add or change reminder</summary>
       <div class="two">
         <label>When
