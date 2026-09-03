@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 
 import store
 
@@ -17,16 +18,23 @@ def notify(item: dict) -> bool:
     body=(item["body"] or "Reminder due").replace("\n"," ")[:180]
     notification_command = shutil.which("termux-notification")
     if notification_command:
-        opener = shutil.which("termux-open-url") or "termux-open-url"
+        prefix = os.environ.get("PREFIX", "/data/data/com.termux/files/usr")
+        bash = shutil.which("bash") or f"{prefix}/bin/bash"
+        launcher = Path(__file__).resolve().parent / "termux" / "open-note.sh"
         note_url = (
             f"{OPEN_URL.rstrip('/')}/notes/{int(item['note_id'])}/edit"
             "?show=reminder#reminder"
         )
-        tap_action = f"{shlex.quote(opener)} {shlex.quote(note_url)}"
+        tap_action = " ".join((
+            shlex.quote(str(bash)),
+            shlex.quote(str(launcher)),
+            shlex.quote(note_url),
+        ))
         proc=subprocess.run([
             notification_command,"--id",f"notes-{item['id']}",
             "--title",title,"--content",body,"--priority","default",
             "--action",tap_action,
+            "--button1","Open","--button1-action",tap_action,
         ],capture_output=True,text=True,timeout=15,check=False)
         return proc.returncode==0
     print(f"[Notes reminder] {title}: {body}",flush=True)
