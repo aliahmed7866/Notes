@@ -127,3 +127,48 @@ def test_mutations_require_csrf(tmp_path, monkeypatch):
 
 def test_configured_timezone_is_available():
     assert app.TZ.key == "Europe/London"
+
+def test_smart_views_separate_overdue_and_upcoming(tmp_path, monkeypatch):
+    c = client(tmp_path, monkeypatch)
+    overdue = store.save_note(None, "Late task", "", "", "slate")
+    future = store.save_note(None, "Future task", "", "", "slate")
+    store.set_reminder(
+        overdue,
+        (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat(timespec="seconds"),
+        "none",
+    )
+    store.set_reminder(
+        future,
+        (datetime.now(timezone.utc) + timedelta(days=3)).isoformat(timespec="seconds"),
+        "none",
+    )
+    overdue_page = c.get("/?view=notes&focus=overdue").get_data(as_text=True)
+    upcoming_page = c.get("/?view=notes&focus=upcoming").get_data(as_text=True)
+    assert "Late task" in overdue_page and "Future task" not in overdue_page
+    assert "Future task" in upcoming_page and "Late task" not in upcoming_page
+
+def test_important_reminder_is_pinned_and_completed_items_can_be_cleared(tmp_path, monkeypatch):
+    c = client(tmp_path, monkeypatch); token = csrf(c)
+    c.post(
+        "/quick-reminder",
+        data={
+            "csrf_token": token,
+            "title": "Important call",
+            "preset": "1h",
+            "recurrence": "none",
+            "important": "1",
+        },
+    )
+    reminder_note = store.list_notes()[0]
+    assert reminder_note["pinned"] == 1
+
+    checklist = store.save_note(None, "Tasks", "", "", "green")
+    store.add_checklist_items(checklist, "Done\nKeep")
+    first = store.get_note(checklist)["checklist"][0]
+    store.toggle_checklist_item(checklist, first["id"])
+    response = c.post(
+        f"/notes/{checklist}/items/clear-completed",
+        data={"csrf_token": token},
+    )
+    assert response.status_code == 302
+    assert [item["text"] for item in store.get_note(checklist)["checklist"]] == ["Keep"]
