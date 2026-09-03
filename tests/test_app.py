@@ -36,3 +36,6 @@ def test_due_reminder_can_be_snoozed(tmp_path,monkeypatch):
 def test_mutations_require_csrf(tmp_path,monkeypatch):
     c=client(tmp_path,monkeypatch)
     assert c.post("/new",data={"title":"No"}).status_code==400
+
+def test_configured_timezone_is_available():
+    assert app.TZ.key == "Europe/London"
