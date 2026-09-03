@@ -61,6 +61,18 @@ def row_dict(row: sqlite3.Row) -> dict[str, Any]:
         except Exception: item["tags"] = []
     return item
 
+def _today_bounds() -> tuple[str, str, str]:
+    zone = ZoneInfo(os.environ.get("NOTES_TIMEZONE", "Europe/London"))
+    now = datetime.now(timezone.utc)
+    local_now = now.astimezone(zone)
+    start = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    end = start + timedelta(days=1)
+    return (
+        now.isoformat(timespec="seconds"),
+        start.astimezone(timezone.utc).isoformat(timespec="seconds"),
+        end.astimezone(timezone.utc).isoformat(timespec="seconds"),
+    )
+
 def _decorate_note(db: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
     item = row_dict(row)
     reminder = db.execute(
@@ -78,12 +90,24 @@ def _decorate_note(db: sqlite3.Connection, row: sqlite3.Row) -> dict[str, Any]:
     item["checklist_done"] = sum(check["completed"] for check in item["checklist"])
     return item
 
-def list_notes(view="notes", query="", tag="") -> list[dict[str, Any]]:
+def list_notes(view="notes", query="", tag="", focus="") -> list[dict[str, Any]]:
     clauses, args = [], []
-    if view == "trash": clauses.append("deleted_at IS NOT NULL")
+    if view == "trash":
+        clauses.append("deleted_at IS NOT NULL")
     else:
         clauses.append("deleted_at IS NULL")
         clauses.append("archived=?"); args.append(1 if view == "archive" else 0)
+    if view == "notes" and focus:
+        now, start, end = _today_bounds()
+        if focus == "overdue":
+            clauses.append("EXISTS (SELECT 1 FROM reminders r WHERE r.note_id=notes.id AND r.status='pending' AND r.due_at<?)")
+            args.append(now)
+        elif focus == "today":
+            clauses.append("EXISTS (SELECT 1 FROM reminders r WHERE r.note_id=notes.id AND r.status='pending' AND r.due_at>=? AND r.due_at<?)")
+            args.extend([start, end])
+        elif focus == "upcoming":
+            clauses.append("EXISTS (SELECT 1 FROM reminders r WHERE r.note_id=notes.id AND r.status='pending' AND r.due_at>=?)")
+            args.append(end)
     if query:
         clauses.append("""(
             title LIKE ? OR body LIKE ? OR tags LIKE ? OR EXISTS (
@@ -94,13 +118,30 @@ def list_notes(view="notes", query="", tag="") -> list[dict[str, Any]]:
         like = f"%{query}%"; args += [like, like, like, like]
     if tag:
         clauses.append("tags LIKE ?"); args.append(f'%"{tag.lower()}"%')
+    order = "pinned DESC, updated_at DESC"
+    if view == "notes" and focus:
+        order = """pinned DESC,
+            COALESCE((SELECT MIN(r.due_at) FROM reminders r
+                      WHERE r.note_id=notes.id AND r.status='pending'), updated_at) ASC"""
     with connect() as db:
         rows = db.execute(
-            "SELECT * FROM notes WHERE " + " AND ".join(clauses) +
-            " ORDER BY pinned DESC, updated_at DESC",
+            "SELECT * FROM notes WHERE " + " AND ".join(clauses) + " ORDER BY " + order,
             args,
         ).fetchall()
         return [_decorate_note(db, row) for row in rows]
+
+def smart_counts() -> dict[str, int]:
+    now, start, end = _today_bounds()
+    with connect() as db:
+        base = """FROM reminders r JOIN notes n ON n.id=r.note_id
+                  WHERE r.status='pending' AND n.deleted_at IS NULL AND n.archived=0"""
+        overdue = db.execute("SELECT COUNT(DISTINCT n.id) " + base + " AND r.due_at<?", (now,)).fetchone()[0]
+        today = db.execute(
+            "SELECT COUNT(DISTINCT n.id) " + base + " AND r.due_at>=? AND r.due_at<?",
+            (start, end),
+        ).fetchone()[0]
+        upcoming = db.execute("SELECT COUNT(DISTINCT n.id) " + base + " AND r.due_at>=?", (end,)).fetchone()[0]
+    return {"overdue": overdue, "today": today, "upcoming": upcoming}
 
 def get_note(note_id: int) -> dict[str, Any] | None:
     with connect() as db:
@@ -159,6 +200,16 @@ def delete_checklist_item(note_id: int, item_id: int) -> bool:
         if changed:
             db.execute("UPDATE notes SET updated_at=? WHERE id=?", (now_iso(), note_id))
     return bool(changed)
+
+def clear_completed_items(note_id: int) -> int:
+    with connect() as db:
+        changed = db.execute(
+            "DELETE FROM checklist_items WHERE note_id=? AND completed=1",
+            (note_id,),
+        ).rowcount
+        if changed:
+            db.execute("UPDATE notes SET updated_at=? WHERE id=?", (now_iso(), note_id))
+    return changed
 
 def set_flag(note_id: int, field: str, value: Any) -> None:
     allowed = {"pinned", "archived", "deleted_at"}
