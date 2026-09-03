@@ -7,6 +7,7 @@ ENV_FILE="$CONFIG_DIR/env"
 VENV="$APP_DIR/.venv"
 WEB_SERVICE="$PREFIX/var/service/notes"
 REMINDER_SERVICE="$PREFIX/var/service/notes-reminders"
+AYCF_REGISTRY="${AYCF_ADMIN_REGISTRY:-$HOME/.config/aycf/apps.json}"
 
 cd "$APP_DIR"
 command -v sv >/dev/null 2>&1 || pkg install -y termux-services
@@ -35,6 +36,7 @@ cd "$APP_DIR"
 exec "$VENV/bin/python" reminder_worker.py
 EOF
 chmod +x "$WEB_SERVICE/run" "$REMINDER_SERVICE/run"
+"$VENV/bin/python" "$APP_DIR/termux/register-admin.py" "$AYCF_REGISTRY" "$PORT"
 sv-enable notes >/dev/null 2>&1 || true
 sv-enable notes-reminders >/dev/null 2>&1 || true
 sv restart notes >/dev/null 2>&1 || sv up notes
