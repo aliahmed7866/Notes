@@ -71,9 +71,12 @@ def create_app(test_config=None):
         view = request.args.get("view", "notes")
         if view not in {"notes", "archive", "trash"}:
             view = "notes"
+        focus = request.args.get("focus", "").strip()
+        if focus not in {"", "today", "upcoming", "overdue"}:
+            focus = ""
         query = request.args.get("q", "").strip()[:100]
         tag = request.args.get("tag", "").strip()[:30]
-        notes = store.list_notes(view, query, tag)
+        notes = store.list_notes(view, query, tag, focus)
         now = store.now_iso()
         due = sum(1 for note in notes if note.get("reminder") and note["reminder"]["due_at"] <= now)
         return render_template(
@@ -84,6 +87,8 @@ def create_app(test_config=None):
             tag=tag,
             tags=store.all_tags(),
             due=due,
+            focus=focus,
+            smart_counts=store.smart_counts(),
         )
 
     @app.post("/quick-reminder")
@@ -109,6 +114,8 @@ def create_app(test_config=None):
             "violet",
         )
         store.set_reminder(note_id, due, request.form.get("recurrence", "none"))
+        if request.form.get("important") == "1":
+            store.set_flag(note_id, "pinned", 1)
         flash("Reminder created.")
         return redirect(url_for("index"))
 
@@ -166,6 +173,16 @@ def create_app(test_config=None):
         if not store.get_note(note_id):
             abort(404)
         store.add_checklist_items(note_id, request.form.get("items", ""))
+        return redirect(request.referrer or url_for("index"))
+
+    @app.post("/notes/<int:note_id>/items/clear-completed")
+    def clear_completed_items(note_id):
+        if not csrf_ok():
+            abort(400)
+        if not store.get_note(note_id):
+            abort(404)
+        removed = store.clear_completed_items(note_id)
+        flash(f"Cleared {removed} completed item{'s' if removed != 1 else ''}.")
         return redirect(request.referrer or url_for("index"))
 
     @app.post("/notes/<int:note_id>/items/<int:item_id>/<action>")

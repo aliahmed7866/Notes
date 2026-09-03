@@ -6,8 +6,10 @@ A private, local-first notes, checklists and reminders app designed for a phone 
 
 - dashboard quick reminder creation with 10-minute, 1-hour, evening, tomorrow and custom-time choices
 - one-off, daily, weekly and monthly recurring reminders
+- smart Today, Upcoming and Overdue views with due-date ordering and live counts
+- important reminders that stay pinned at the top
 - quick checklists with one item per line
-- checklist progress, one-tap tick/untick, item addition and deletion
+- checklist progress, one-tap tick/untick, item addition, deletion and completed-item cleanup
 - search across titles, note text, checklist items and tags
 - tags, colours, pinning, archive and trash
 - reminder snooze, completion and automatic recurring rollover

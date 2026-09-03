@@ -34,6 +34,7 @@
         </select>
       </label>
     </div>
+    <label class="important-check"><input type="checkbox" name="important" value="1"> Mark important and keep at the top</label>
     <details class="compact-details">
       <summary>Custom time or extra note</summary>
       <label>Custom time
@@ -62,11 +63,15 @@
 <form class="search">
   <input name="q" value="{{q}}" placeholder="Search notes, checklist items or tags">
   <input type="hidden" name="view" value="{{view}}">
+  {% if focus %}<input type="hidden" name="focus" value="{{focus}}">{% endif %}
   <button>Search</button>
 </form>
 
-<nav class="tabs">
-  <a class="{{'on' if view=='notes'}}" href="/?view=notes">Notes</a>
+<nav class="tabs smart-tabs" aria-label="Note views">
+  <a class="{{'on' if view=='notes' and not focus}}" href="/?view=notes">All notes</a>
+  <a class="{{'on' if focus=='today'}}" href="/?view=notes&focus=today">Today <span>{{smart_counts.today}}</span></a>
+  <a class="{{'on' if focus=='upcoming'}}" href="/?view=notes&focus=upcoming">Upcoming <span>{{smart_counts.upcoming}}</span></a>
+  <a class="{{'on' if focus=='overdue'}}" href="/?view=notes&focus=overdue">Overdue <span>{{smart_counts.overdue}}</span></a>
   <a class="{{'on' if view=='archive'}}" href="/?view=archive">Archive</a>
   <a class="{{'on' if view=='trash'}}" href="/?view=trash">Trash</a>
 </nav>
@@ -82,7 +87,7 @@
   <article class="note {{n.colour}}">
     <div class="note-top">
       <h2>{{n.title or 'Untitled'}}</h2>
-      {% if n.pinned %}<span title="Pinned">◆</span>{% endif %}
+      {% if n.pinned %}<span class="important-badge" title="Important">Important</span>{% endif %}
     </div>
 
     {% if n.body %}<div class="body">{{n.body}}</div>{% endif %}
@@ -92,6 +97,12 @@
       <div class="check-progress">
         <span>{{n.checklist_done}} of {{n.checklist|length}} done</span>
         <progress value="{{n.checklist_done}}" max="{{n.checklist|length}}"></progress>
+        {% if n.checklist_done %}
+        <form method="post" action="/notes/{{n.id}}/items/clear-completed" data-confirm="Clear completed items?">
+          <input type="hidden" name="csrf_token" value="{{csrf}}">
+          <button>Clear done</button>
+        </form>
+        {% endif %}
       </div>
       {% for item in n.checklist %}
       <div class="check-item {{'complete' if item.completed}}">
