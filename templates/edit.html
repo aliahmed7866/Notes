@@ -1,1 +1,61 @@
-{% extends "base.html" %}{% block title %}{{'Edit' if note else 'New'}} note{% endblock %}{% block content %}<section class="editor"><p class="eyebrow">{{'Edit note' if note else 'Quick capture'}}</p><h1>{{'Shape the thought' if note else 'Catch it now'}}</h1><form method="post"><input type="hidden" name="csrf_token" value="{{csrf}}"><label>Title<input name="title" maxlength="200" autofocus value="{{note.title if note else ''}}" placeholder="What is this about?"></label><label>Note<textarea name="body" rows="10" placeholder="Write a note, idea or checklist…">{{note.body if note else ''}}</textarea></label><div class="two"><label>Tags<input name="tags" value="{{note.tags|join(', ') if note else ''}}" placeholder="work, travel"></label><label>Colour<select name="colour">{% for c in ['slate','violet','blue','green','amber','rose'] %}<option {{'selected' if note and note.colour==c}}>{{c}}</option>{% endfor %}</select></label></div><details><summary>Add a reminder</summary><div class="two"><label>When<input type="datetime-local" name="due_at" value="{{local_due(note.reminder.due_at) if note and note.reminder else ''}}"></label><label>Repeat<select name="recurrence">{% for r in ['none','daily','weekly','monthly'] %}<option {{'selected' if note and note.reminder and note.reminder.recurrence==r}}>{{r}}</option>{% endfor %}</select></label></div></details><button class="primary wide">Save note</button></form></section>{% endblock %}
+{% extends "base.html" %}
+{% block title %}{{'Edit' if note else 'New'}} note{% endblock %}
+{% block content %}
+<section class="editor">
+  <p class="eyebrow">{{'Edit note' if note else 'Quick capture'}}</p>
+  <h1>{{'Shape the thought' if note else 'Catch it now'}}</h1>
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{csrf}}">
+    <label>Title
+      <input name="title" maxlength="200" autofocus value="{{note.title if note else ''}}" placeholder="What is this about?">
+    </label>
+    <label>Note
+      <textarea name="body" rows="8" placeholder="Write a note or idea…">{{note.body if note else ''}}</textarea>
+    </label>
+
+    {% if note and note.checklist %}
+    <div class="existing-items">
+      <strong>Checklist</strong>
+      <span>{{note.checklist_done}} of {{note.checklist|length}} complete. Tick items from the home screen.</span>
+      {% for item in note.checklist %}
+      <div class="{{'complete' if item.completed}}">· {{item.text}}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <label>Add checklist items
+      <textarea name="new_items" rows="4" placeholder="One new item per line"></textarea>
+    </label>
+
+    <div class="two">
+      <label>Tags
+        <input name="tags" value="{{note.tags|join(', ') if note else ''}}" placeholder="work, travel">
+      </label>
+      <label>Colour
+        <select name="colour">
+          {% for c in ['slate','violet','blue','green','amber','rose'] %}
+          <option {{'selected' if note and note.colour==c}}>{{c}}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+
+    <details>
+      <summary>Add or change reminder</summary>
+      <div class="two">
+        <label>When
+          <input type="datetime-local" name="due_at" value="{{local_due(note.reminder.due_at) if note and note.reminder else ''}}">
+        </label>
+        <label>Repeat
+          <select name="recurrence">
+            {% for r in ['none','daily','weekly','monthly'] %}
+            <option {{'selected' if note and note.reminder and note.reminder.recurrence==r}}>{{r}}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+    </details>
+    <button class="primary wide">Save note</button>
+  </form>
+</section>
+{% endblock %}

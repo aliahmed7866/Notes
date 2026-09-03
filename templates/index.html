@@ -1,9 +1,178 @@
-{% extends "base.html" %}{% block content %}
-<section class="hero"><div><p class="eyebrow">Local memory</p><h1>What matters next?</h1><p>Capture thoughts quickly and let reminders bring them back at the right time.</p></div></section>
-<form class="search"><input name="q" value="{{q}}" placeholder="Search titles, text or tags"><input type="hidden" name="view" value="{{view}}"><button>Search</button></form>
-<nav class="tabs"><a class="{{'on' if view=='notes'}}" href="/?view=notes">Notes</a><a class="{{'on' if view=='archive'}}" href="/?view=archive">Archive</a><a class="{{'on' if view=='trash'}}" href="/?view=trash">Trash</a></nav>
-{% if tags %}<div class="tags">{% for t in tags %}<a href="/?view={{view}}&tag={{t}}">#{{t}}</a>{% endfor %}</div>{% endif %}
-<section class="grid">{% for n in notes %}<article class="note {{n.colour}}"><div class="note-top"><h2>{{n.title or 'Untitled'}}</h2>{% if n.pinned %}<span title="Pinned">◆</span>{% endif %}</div><div class="body">{{n.body}}</div>{% if n.tags %}<div class="tags">{% for t in n.tags %}<span>#{{t}}</span>{% endfor %}</div>{% endif %}
-{% if n.reminder %}<div class="reminder"><strong>Reminder</strong> · {{local_due(n.reminder.due_at).replace('T',' ')}}{% if n.reminder.recurrence!='none' %} · {{n.reminder.recurrence}}{% endif %}<div class="actions"><form method="post" action="/reminders/{{n.reminder.id}}/done"><input type="hidden" name="csrf_token" value="{{csrf}}"><button>Done</button></form><form method="post" action="/reminders/{{n.reminder.id}}/snooze"><input type="hidden" name="csrf_token" value="{{csrf}}"><input type="hidden" name="minutes" value="60"><button>Snooze 1h</button></form></div></div>{% endif %}
-<div class="actions"><a href="/notes/{{n.id}}/edit">Edit</a>{% if view=='trash' %}<form method="post" action="/notes/{{n.id}}/restore"><input type="hidden" name="csrf_token" value="{{csrf}}"><button>Restore</button></form>{% else %}<form method="post" action="/notes/{{n.id}}/pin"><input type="hidden" name="csrf_token" value="{{csrf}}"><button>{{'Unpin' if n.pinned else 'Pin'}}</button></form><form method="post" action="/notes/{{n.id}}/archive"><input type="hidden" name="csrf_token" value="{{csrf}}"><button>{{'Unarchive' if n.archived else 'Archive'}}</button></form><form method="post" action="/notes/{{n.id}}/trash"><input type="hidden" name="csrf_token" value="{{csrf}}"><button>Trash</button></form>{% endif %}</div></article>{% else %}<div class="empty"><h2>No notes here</h2><p>Capture a thought, list or reminder before it slips away.</p><a class="primary" href="/new">Create note</a></div>{% endfor %}</section>
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">Local memory</p>
+    <h1>What matters next?</h1>
+    <p>Capture thoughts, make a checklist or schedule a reminder without leaving this screen.</p>
+  </div>
+</section>
+
+{% if view == "notes" %}
+<section class="quick-grid" aria-label="Quick capture">
+  <form class="quick-card reminder-card" method="post" action="/quick-reminder">
+    <input type="hidden" name="csrf_token" value="{{csrf}}">
+    <p class="eyebrow">Quick reminder</p>
+    <h2>Remind me to…</h2>
+    <input name="title" maxlength="200" required placeholder="Call the dentist">
+    <div class="quick-row">
+      <label>When
+        <select name="preset">
+          <option value="10m">In 10 minutes</option>
+          <option value="1h">In 1 hour</option>
+          <option value="evening">This evening</option>
+          <option value="tomorrow">Tomorrow at 9:00</option>
+          <option value="custom">Custom time</option>
+        </select>
+      </label>
+      <label>Repeat
+        <select name="recurrence">
+          <option value="none">Does not repeat</option>
+          <option value="daily">Every day</option>
+          <option value="weekly">Every week</option>
+          <option value="monthly">Every month</option>
+        </select>
+      </label>
+    </div>
+    <details class="compact-details">
+      <summary>Custom time or extra note</summary>
+      <label>Custom time
+        <input type="datetime-local" name="custom_due">
+      </label>
+      <label>Extra note
+        <input name="body" maxlength="500" placeholder="Optional details">
+      </label>
+    </details>
+    <button class="primary wide">Create reminder</button>
+  </form>
+
+  <form class="quick-card checklist-card" method="post" action="/quick-checklist">
+    <input type="hidden" name="csrf_token" value="{{csrf}}">
+    <p class="eyebrow">Quick checklist</p>
+    <h2>Make a to-do list</h2>
+    <input name="title" maxlength="200" placeholder="Weekend errands">
+    <label>One item per line
+      <textarea name="items" rows="5" placeholder="Buy groceries&#10;Collect parcel&#10;Book tickets"></textarea>
+    </label>
+    <button class="primary wide">Create checklist</button>
+  </form>
+</section>
+{% endif %}
+
+<form class="search">
+  <input name="q" value="{{q}}" placeholder="Search notes, checklist items or tags">
+  <input type="hidden" name="view" value="{{view}}">
+  <button>Search</button>
+</form>
+
+<nav class="tabs">
+  <a class="{{'on' if view=='notes'}}" href="/?view=notes">Notes</a>
+  <a class="{{'on' if view=='archive'}}" href="/?view=archive">Archive</a>
+  <a class="{{'on' if view=='trash'}}" href="/?view=trash">Trash</a>
+</nav>
+
+{% if tags %}
+<div class="tags">
+  {% for t in tags %}<a href="/?view={{view}}&tag={{t}}">#{{t}}</a>{% endfor %}
+</div>
+{% endif %}
+
+<section class="grid">
+{% for n in notes %}
+  <article class="note {{n.colour}}">
+    <div class="note-top">
+      <h2>{{n.title or 'Untitled'}}</h2>
+      {% if n.pinned %}<span title="Pinned">◆</span>{% endif %}
+    </div>
+
+    {% if n.body %}<div class="body">{{n.body}}</div>{% endif %}
+
+    {% if n.checklist %}
+    <div class="checklist">
+      <div class="check-progress">
+        <span>{{n.checklist_done}} of {{n.checklist|length}} done</span>
+        <progress value="{{n.checklist_done}}" max="{{n.checklist|length}}"></progress>
+      </div>
+      {% for item in n.checklist %}
+      <div class="check-item {{'complete' if item.completed}}">
+        <form method="post" action="/notes/{{n.id}}/items/{{item.id}}/toggle">
+          <input type="hidden" name="csrf_token" value="{{csrf}}">
+          <button class="tick" aria-label="{{'Mark incomplete' if item.completed else 'Mark complete'}}">{{'✓' if item.completed else ''}}</button>
+        </form>
+        <span>{{item.text}}</span>
+        <form method="post" action="/notes/{{n.id}}/items/{{item.id}}/delete">
+          <input type="hidden" name="csrf_token" value="{{csrf}}">
+          <button class="remove" aria-label="Delete item">×</button>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if view != 'trash' %}
+    <form class="add-item" method="post" action="/notes/{{n.id}}/items">
+      <input type="hidden" name="csrf_token" value="{{csrf}}">
+      <input name="items" required maxlength="500" placeholder="+ Add a checklist item">
+      <button>Add</button>
+    </form>
+    {% endif %}
+
+    {% if n.tags %}
+    <div class="tags">{% for t in n.tags %}<span>#{{t}}</span>{% endfor %}</div>
+    {% endif %}
+
+    {% if n.reminder %}
+    <div class="reminder">
+      <strong>Reminder</strong> · {{local_due(n.reminder.due_at).replace('T',' ')}}
+      {% if n.reminder.recurrence!='none' %} · {{n.reminder.recurrence}}{% endif %}
+      <div class="actions">
+        <form method="post" action="/reminders/{{n.reminder.id}}/done">
+          <input type="hidden" name="csrf_token" value="{{csrf}}">
+          <button>Done</button>
+        </form>
+        <form method="post" action="/reminders/{{n.reminder.id}}/snooze">
+          <input type="hidden" name="csrf_token" value="{{csrf}}">
+          <input type="hidden" name="minutes" value="10">
+          <button>Snooze 10m</button>
+        </form>
+        <form method="post" action="/reminders/{{n.reminder.id}}/snooze">
+          <input type="hidden" name="csrf_token" value="{{csrf}}">
+          <input type="hidden" name="minutes" value="60">
+          <button>Snooze 1h</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="actions">
+      <a href="/notes/{{n.id}}/edit">Edit</a>
+      {% if view=='trash' %}
+      <form method="post" action="/notes/{{n.id}}/restore">
+        <input type="hidden" name="csrf_token" value="{{csrf}}">
+        <button>Restore</button>
+      </form>
+      {% else %}
+      <form method="post" action="/notes/{{n.id}}/pin">
+        <input type="hidden" name="csrf_token" value="{{csrf}}">
+        <button>{{'Unpin' if n.pinned else 'Pin'}}</button>
+      </form>
+      <form method="post" action="/notes/{{n.id}}/archive">
+        <input type="hidden" name="csrf_token" value="{{csrf}}">
+        <button>{{'Unarchive' if n.archived else 'Archive'}}</button>
+      </form>
+      <form method="post" action="/notes/{{n.id}}/trash">
+        <input type="hidden" name="csrf_token" value="{{csrf}}">
+        <button>Trash</button>
+      </form>
+      {% endif %}
+    </div>
+  </article>
+{% else %}
+  <div class="empty">
+    <h2>No notes here</h2>
+    <p>Capture a thought, list or reminder before it slips away.</p>
+    <a class="primary" href="/new">Create note</a>
+  </div>
+{% endfor %}
+</section>
 {% endblock %}
