@@ -49,4 +49,8 @@ def test_notification_tap_opens_exact_note(monkeypatch):
     assert command[0].endswith("/termux-notification")
     action = command[command.index("--action") + 1]
     assert "/notes/42/edit?show=reminder#reminder" in action
-    assert action.startswith("/data/data/com.termux/files/usr/bin/termux-open-url ")
+    assert action.startswith("/data/data/com.termux/files/usr/bin/bash ")
+    assert "termux/open-note.sh" in action
+    button_action = command[command.index("--button1-action") + 1]
+    assert command[command.index("--button1") + 1] == "Open"
+    assert button_action == action
