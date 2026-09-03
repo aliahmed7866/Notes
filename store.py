@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import calendar
 import json
 import os
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -66,7 +67,13 @@ def list_notes(view="notes", query="", tag="") -> list[dict[str, Any]]:
         clauses.append("tags LIKE ?"); args.append(f'%"{tag.lower()}"%')
     with connect() as db:
         rows=db.execute("SELECT * FROM notes WHERE "+" AND ".join(clauses)+" ORDER BY pinned DESC, updated_at DESC",args).fetchall()
-    return [row_dict(r) for r in rows]
+        result=[]
+        for row in rows:
+            item=row_dict(row)
+            reminder=db.execute("SELECT * FROM reminders WHERE note_id=? AND status='pending' ORDER BY due_at LIMIT 1",(item["id"],)).fetchone()
+            item["reminder"]=dict(reminder) if reminder else None
+            result.append(item)
+    return result
 
 def get_note(note_id: int) -> dict[str, Any] | None:
     with connect() as db:
@@ -102,7 +109,18 @@ def reminder_action(reminder_id: int, action: str, due_at: str | None = None) ->
         if action=="snooze" and due_at:
             db.execute("UPDATE reminders SET due_at=?,notified_at=NULL WHERE id=? AND status='pending'",(due_at,reminder_id))
         elif action=="done":
+            row=db.execute("SELECT note_id,due_at,recurrence FROM reminders WHERE id=? AND status='pending'",(reminder_id,)).fetchone()
             db.execute("UPDATE reminders SET status='done' WHERE id=?",(reminder_id,))
+            if row and row["recurrence"] != "none":
+                due=datetime.fromisoformat(row["due_at"])
+                while due <= datetime.now(timezone.utc):
+                    if row["recurrence"] == "daily": due += timedelta(days=1)
+                    elif row["recurrence"] == "weekly": due += timedelta(days=7)
+                    else:
+                        year = due.year + (1 if due.month == 12 else 0)
+                        month = 1 if due.month == 12 else due.month + 1
+                        due = due.replace(year=year, month=month, day=min(due.day, calendar.monthrange(year, month)[1]))
+                db.execute("INSERT INTO reminders(note_id,due_at,recurrence,status,created_at) VALUES(?,?,?,'pending',?)",(row["note_id"],due.isoformat(timespec="seconds"),row["recurrence"],now_iso()))
         elif action=="cancel":
             db.execute("UPDATE reminders SET status='cancelled' WHERE id=?",(reminder_id,))
 
