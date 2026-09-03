@@ -68,3 +68,14 @@ summary{cursor:pointer;font-weight:800}
  .note,.quick-card{border-radius:18px}
  .quick-card{padding:17px}
 }
+
+.smart-tabs{align-items:center}
+.smart-tabs a{display:inline-flex;align-items:center;gap:7px}
+.smart-tabs a span{min-width:20px;padding:2px 6px;border-radius:999px;background:#263149;color:#cfd7e6;text-align:center;font-size:.7rem}
+.smart-tabs a.on span{background:#5945a3;color:#fff}
+.important-check{display:flex!important;grid-template-columns:none!important;align-items:center;gap:8px;margin:10px 0;font-size:.82rem}
+.important-check input{width:18px;height:18px}
+.important-badge{padding:4px 8px;border-radius:999px;background:#4b3b17;color:#ffe099;font-size:.68rem;font-weight:850;text-transform:uppercase;letter-spacing:.05em}
+.check-progress form{margin-left:auto}
+.check-progress button{padding:4px 7px;border:0;background:transparent;color:#9aa7ba;font-size:.7rem}
+.reminder.overdue{background:#3b1d2a;color:#ffc4ce}
