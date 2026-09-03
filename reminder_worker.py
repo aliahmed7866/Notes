@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shlex
 import shutil
 import subprocess
 import time
@@ -14,11 +15,18 @@ OPEN_URL=os.environ.get("NOTES_OPEN_URL","http://127.0.0.1:8083")
 def notify(item: dict) -> bool:
     title=item["title"] or "Notes reminder"
     body=(item["body"] or "Reminder due").replace("\n"," ")[:180]
-    if shutil.which("termux-notification"):
+    notification_command = shutil.which("termux-notification")
+    if notification_command:
+        opener = shutil.which("termux-open-url") or "termux-open-url"
+        note_url = (
+            f"{OPEN_URL.rstrip('/')}/notes/{int(item['note_id'])}/edit"
+            "?show=reminder#reminder"
+        )
+        tap_action = f"{shlex.quote(opener)} {shlex.quote(note_url)}"
         proc=subprocess.run([
-            "termux-notification","--id",f"notes-{item['id']}",
+            notification_command,"--id",f"notes-{item['id']}",
             "--title",title,"--content",body,"--priority","default",
-            "--action",f"termux-open-url {OPEN_URL}",
+            "--action",tap_action,
         ],capture_output=True,text=True,timeout=15,check=False)
         return proc.returncode==0
     print(f"[Notes reminder] {title}: {body}",flush=True)
