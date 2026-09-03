@@ -29,7 +29,7 @@ bash termux/install-auto-deploy.sh
 
 Open http://127.0.0.1:8083. Data defaults to `~/.local/share/notes/notes.sqlite3`.
 
-Install Termux:API from the same source/signature as Termux and allow notifications for Android reminders.
+Install Termux:API from the same source/signature as Termux and allow notifications for Android reminders. Tapping a new notification—or its **Open** button—opens the matching note with its reminder details expanded. Tap-action diagnostics are written to `~/.local/state/notes/notification-actions.log`.
 
 ## Updating
 
