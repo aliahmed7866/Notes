@@ -172,3 +172,17 @@ def test_important_reminder_is_pinned_and_completed_items_can_be_cleared(tmp_pat
     )
     assert response.status_code == 302
     assert [item["text"] for item in store.get_note(checklist)["checklist"]] == ["Keep"]
+
+def test_notification_link_expands_reminder_editor(tmp_path, monkeypatch):
+    c = client(tmp_path, monkeypatch)
+    note_id = store.save_note(None, "Linked reminder", "", "", "violet")
+    store.set_reminder(
+        note_id,
+        (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(timespec="seconds"),
+        "none",
+    )
+    page = c.get(
+        f"/notes/{note_id}/edit?show=reminder#reminder"
+    ).get_data(as_text=True)
+    assert 'details id="reminder" open' in page
+    assert "Linked reminder" in page
