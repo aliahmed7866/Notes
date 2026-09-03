@@ -7,6 +7,7 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 DB_PATH = Path(os.environ.get("NOTES_DB_PATH", Path.home() / ".local/share/notes/notes.sqlite3")).expanduser()
 
@@ -112,15 +113,18 @@ def reminder_action(reminder_id: int, action: str, due_at: str | None = None) ->
             row=db.execute("SELECT note_id,due_at,recurrence FROM reminders WHERE id=? AND status='pending'",(reminder_id,)).fetchone()
             db.execute("UPDATE reminders SET status='done' WHERE id=?",(reminder_id,))
             if row and row["recurrence"] != "none":
-                due=datetime.fromisoformat(row["due_at"])
-                while due <= datetime.now(timezone.utc):
+                zone=ZoneInfo(os.environ.get("NOTES_TIMEZONE","Europe/London"))
+                due=datetime.fromisoformat(row["due_at"]).astimezone(zone)
+                now=datetime.now(timezone.utc)
+                while due.astimezone(timezone.utc) <= now:
                     if row["recurrence"] == "daily": due += timedelta(days=1)
                     elif row["recurrence"] == "weekly": due += timedelta(days=7)
                     else:
                         year = due.year + (1 if due.month == 12 else 0)
                         month = 1 if due.month == 12 else due.month + 1
                         due = due.replace(year=year, month=month, day=min(due.day, calendar.monthrange(year, month)[1]))
-                db.execute("INSERT INTO reminders(note_id,due_at,recurrence,status,created_at) VALUES(?,?,?,'pending',?)",(row["note_id"],due.isoformat(timespec="seconds"),row["recurrence"],now_iso()))
+                next_utc=due.astimezone(timezone.utc).isoformat(timespec="seconds")
+                db.execute("INSERT INTO reminders(note_id,due_at,recurrence,status,created_at) VALUES(?,?,?,'pending',?)",(row["note_id"],next_utc,row["recurrence"],now_iso()))
         elif action=="cancel":
             db.execute("UPDATE reminders SET status='cancelled' WHERE id=?",(reminder_id,))
 
