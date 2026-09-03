@@ -37,8 +37,34 @@ exec "$VENV/bin/python" reminder_worker.py
 EOF
 chmod +x "$WEB_SERVICE/run" "$REMINDER_SERVICE/run"
 "$VENV/bin/python" "$APP_DIR/termux/register-admin.py" "$AYCF_REGISTRY" "$PORT"
-sv-enable notes >/dev/null 2>&1 || true
-sv-enable notes-reminders >/dev/null 2>&1 || true
-sv restart notes >/dev/null 2>&1 || sv up notes
-sv restart notes-reminders >/dev/null 2>&1 || sv up notes-reminders
-echo "[Notes] Ready at http://127.0.0.1:$PORT"
+wait_for_supervision() {
+  service_name="$1"
+  service_dir="$PREFIX/var/service/$service_name"
+  for _ in $(seq 1 30); do
+    [ -e "$service_dir/supervise/ok" ] && return 0
+    sleep 0.5
+  done
+  echo "[Notes] runit did not supervise $service_name. Ensure Termux:Services is running, then rerun this installer." >&2
+  return 1
+}
+
+start_service() {
+  service_name="$1"
+  sv-enable "$service_name" >/dev/null 2>&1 || true
+  wait_for_supervision "$service_name"
+  sv up "$service_name"
+}
+
+start_service notes
+start_service notes-reminders
+
+for _ in $(seq 1 20); do
+  if curl -fsS --max-time 3 "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; then
+    echo "[Notes] Ready at http://127.0.0.1:$PORT"
+    exit 0
+  fi
+  sleep 0.5
+done
+echo "[Notes] Web service started but its health check failed." >&2
+sv status notes || true
+exit 1
