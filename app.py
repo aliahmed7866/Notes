@@ -240,6 +240,14 @@ def create_app(test_config=None):
     def export():
         return jsonify(store.export_data())
 
+    @app.get("/service-worker.js")
+    def service_worker():
+        response = app.send_static_file("service-worker.js")
+        response.headers["Content-Type"] = "application/javascript"
+        response.headers["Cache-Control"] = "no-cache"
+        response.headers["Service-Worker-Allowed"] = "/"
+        return response
+
     @app.get("/health")
     def health():
         with store.connect() as db:
