@@ -42,3 +42,9 @@ bash termux/install-service.sh
 ```
 
 The checklist table is created automatically on first start; existing notes and reminders are preserved.
+
+## Install as a phone app
+
+Keep the Notes service running in Termux, open its local URL in Chrome, then use the in-app **Install app** button (or Chrome's **Install app / Add to Home screen** menu). The installed icon opens Notes in its own app window.
+
+The Termux service, SQLite data, reminders and auto-deploy process are unchanged. If the service is stopped, the installed app shows a short offline message directing you to start Notes from the Admin Hub; private notes and live pages are not cached.
