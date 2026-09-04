@@ -2,7 +2,7 @@
   "name": "Notes & Reminders",
   "short_name": "Notes",
   "description": "Private local notes, checklists and reminders.",
-  "id": "/",
+  "id": "/notes-app",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
